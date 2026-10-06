@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const TravelRequestCreateSchema = z.object({
+export const TravelRequestBaseSchema = z.object({
   destination: z.string().min(2, 'Destination is required'),
   cityClass: z.enum(['Tier 1', 'Tier 2', 'Tier 3']).default('Tier 1'),
   startDate: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid start date'),
@@ -11,7 +11,9 @@ export const TravelRequestCreateSchema = z.object({
   estimatedCost: z.number().positive('Estimated cost must be greater than 0'),
   employeeBorneEstimate: z.number().nonnegative('Employee borne estimate must be >= 0'),
   advanceRequested: z.number().nonnegative('Advance requested cannot be negative'),
-}).refine(
+});
+
+export const TravelRequestCreateSchema = TravelRequestBaseSchema.refine(
   (data) => new Date(data.endDate) >= new Date(data.startDate),
   { message: 'End date must be on or after start date', path: ['endDate'] }
 ).refine(
@@ -19,7 +21,7 @@ export const TravelRequestCreateSchema = z.object({
   { message: 'Advance requested cannot exceed 60% of estimated employee-borne cost', path: ['advanceRequested'] }
 );
 
-export const TravelRequestUpdateSchema = TravelRequestCreateSchema.partial();
+export const TravelRequestUpdateSchema = TravelRequestBaseSchema.partial();
 
 export const ExpenseCreateSchema = z.object({
   date: z.string().refine((val) => !isNaN(Date.parse(val)), 'Invalid expense date'),
