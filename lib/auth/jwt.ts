@@ -1,8 +1,9 @@
 import { SignJWT, jwtVerify } from 'jose';
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'nortex-super-secret-demo-jwt-key-2026-reimbursement'
-);
+function getJwtSecret() {
+  const secretStr = process.env.JWT_SECRET || 'nortex-super-secret-demo-jwt-key-2026-reimbursement';
+  return new TextEncoder().encode(secretStr);
+}
 
 export interface SessionPayload {
   userId: string;
@@ -19,14 +20,14 @@ export async function signSessionToken(payload: SessionPayload): Promise<string>
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
-    .sign(JWT_SECRET);
+    .sign(getJwtSecret());
 }
 
 export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(JWT_SECRET, token);
+    const { payload } = await jwtVerify(token, getJwtSecret());
     return payload as unknown as SessionPayload;
-  } catch {
+  } catch (err) {
     return null;
   }
 }
