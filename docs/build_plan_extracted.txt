@@ -1,0 +1,738 @@
+AI Planet — Reimbursement Take‑Home
+Autonomous Build Plan + Antigravity Master Prompt | Overnight execution plan
+Objective: Give an AI coding agent enough context, architecture, constraints, prompts, validation rules, testing gates, and delivery instructions to build the entire prototype autonomously while Shane sleeps.
+1. Source of truth
+PROBLEM_STATEMENT.md — explicitly says the pack is the specification and that stack, screens, database, and architecture are our decisions.
+expense_policy.md — source of truth for approval thresholds, entitlements, non-reimbursables, proof requirements, duplicate handling, settlement timing, and payment runs.
+Travel_Expense_Forms_Template.xlsx — source of truth for the current travel-request and settlement structure and summary calculations.
+employee_master.csv — source of truth for employees, reporting relationships, departments, cost centres, and roles.
+15 sample emails + 2 receipt images — source data showing one realistic trip, including company-paid travel, employee-paid expenses, duplicates, failed payment, colleague expense, hotel line items, and business entertainment.
+Reference video transcript/screenshots — demonstrates the intended mental model: employee request → business approval → settlement → finance verification/payment, but explicitly says a smaller prototype is acceptable.
+2. What the evaluator is actually testing
+Can we understand an underspecified business process without waiting for clarification?
+Can we make sensible architectural and product decisions?
+Can we enforce role-based workflows and business rules?
+Can we build a small end-to-end system instead of a large incomplete one?
+Can we review AI-generated code critically, test it, and explain it?
+Can we clearly document assumptions, omissions, and failure points?
+3. Non-negotiable strategy
+Do not recreate the reference product. Build a focused reimbursement workflow that demonstrates the same reasoning. The target is a reliable prototype, not an enterprise expense platform.
+4. Overnight execution rule
+Backend/data model first; frontend second; integration/testing third; polish last.
+The agent must inspect the existing repository before changing anything.
+The agent must keep the project runnable after every phase.
+The agent must run type checks, lint/build/tests where available after each major phase.
+The agent must not introduce unnecessary dependencies or architectural rewrites.
+If an ambiguity is non-blocking, make a reasonable assumption and document it instead of stopping.
+If an assumption affects security, money calculation, or workflow correctness, stop only long enough to choose the safest deterministic behavior and document it.
+Page 2 — Requirements & Scope
+Translate the source pack into an implementation contract
+1. Core problem
+Business problem: Employees currently reconstruct travel expenses manually from approval emails, booking confirmations, receipts, and bills. The application should reduce manual entry, reduce errors, make approval state visible, and reduce Finance follow-ups.
+2. Minimum viable workflow
+EMPLOYEE
+  Create Travel Request
+        ↓
+  Reporting Manager Approval
+        ↓
+  Higher approvals when threshold requires them
+        ↓
+  Trip / settlement
+        ↓
+  Employee enters expense lines + proof
+        ↓
+  Policy engine calculates eligible / disallowed
+        ↓
+FINANCE / ADMIN
+  Verify claim
+        ↓
+  Payment / recovery outcome
+3. Required roles
+Role
+Can do
+Cannot do
+Primary screens
+Employee
+Create/view own requests; add expenses; submit settlement; respond to returns
+Approve own/others; process payment; edit policy
+Dashboard, Request, Settlement, Claim Detail
+Manager / HOD / HODiv / MD
+Approve, reject, return assigned claims
+Approve own claim; skip required higher level
+Approvals, Claim Detail
+Finance / Admin
+Verify claims; view policy exceptions; release payment; audit
+Bypass workflow silently
+Finance Queue, Claim Detail, Dashboard
+4. Scope we WILL build
+Demo authentication with seeded users from employee_master.csv.
+RBAC enforced on the server, not only by hiding UI.
+Travel Request creation and submission.
+Dynamic approval chain based on estimated/claimed value and travel type.
+Manager/HOD/HODiv/MD approval, rejection, and return-with-remarks.
+Settlement creation against the same Travel Request ID.
+Expense line entry with proof reference/upload.
+Central policy evaluation for lodging, meals, local conveyance, business entertainment, and non-reimbursables.
+Duplicate-expense detection using bill/merchant/date/amount heuristics.
+Employee-vs-company paid handling.
+Advance adjustment and payable/recoverable calculation.
+Finance verification and payment/recovery status.
+Audit-friendly timeline/status history.
+Seeded sample trip so the evaluator can immediately demonstrate the workflow.
+5. Scope we WILL NOT build
+Real Gmail ingestion.
+OCR/LLM receipt extraction.
+Real banking/payment integration.
+A six-stage configurable workflow-builder UI.
+Enterprise SSO.
+Production notification infrastructure.
+ML-based duplicate detection.
+Full travel-booking integration.
+Complex admin policy designer.
+Pixel-perfect recreation of the reference demo.
+Page 3 — Business Rules
+Centralize money and workflow logic; do not scatter rules across UI components
+1. Approval matrix
+Estimated / claimed value
+Required business approvals
+≤ ₹25,000
+Reporting Manager
+₹25,001–₹75,000
+Reporting Manager → Head of Department
+₹75,001–₹2,00,000
+Reporting Manager → Head of Department → Head of Division
+> ₹2,00,000 or international
+Reporting Manager → Head of Department → Head of Division → MD/CEO
+Every claim
+Finance verification after business approvals
+2. Approval edge cases
+Approver cannot approve their own claim.
+If claimant is the Reporting Manager for a level, skip that level and route to the next required level.
+Approvers may return with remarks; returned claims go back to the employee for correction and resubmission against the same Travel Request ID.
+Rejected claims are terminal for the current request unless the product explicitly supports resubmission as a new version; do not silently reopen them.
+Every decision should create an audit event.
+3. Advance rules
+Advance may be up to 60% of estimated employee-borne cost.
+Advance is adjusted against the final settlement.
+If final claim < advance, amount recoverable from employee = advance − net reimbursable claim.
+Payable and recoverable must be mutually exclusive.
+4. Expense policy rules
+Policy area
+Rule
+Lodging
+Tier 1 room tariff ≤ ₹6,000/night; Tier 2 ≤ ₹4,000; Tier 3/other ≤ ₹2,800. Taxes on room tariff are fully reimbursable. Excess tariff is disallowed, not silently removed.
+Air travel
+Domestic economy; centrally booked and company-paid; employee does not claim it.
+Meals
+Tier 1 ₹1,500/full day; Tier 2/below ₹1,000/full day. Actuals up to limit. Bills required above ₹500.
+Local conveyance
+Actuals against receipt; airport transfers covered.
+Business entertainment
+Separate category. Attendees + organisation required. HOD prior approval required when > ₹2,000.
+Non-reimbursable
+Laundry, minibar, in-room entertainment, spa, gym, personal phone/data, fines/penalties, independent insurance, and expenses incurred by someone other than claimant.
+5. Submission / proof / payment
+Settlement must be submitted within 7 calendar days of return.
+Every claim line requires a supporting proof reference.
+Duplicate submission is a policy breach; reconcile by bill number, date, amount, merchant where available.
+Finance payment runs occur on the 10th and 25th of each month. Prototype may model payment status rather than real transfer.
+Page 4 — Sample Trip & Seed Data
+Use the supplied trip as the golden-path demonstration
+1. Employee hierarchy
+Chaitanya Reddy (NX-4471) — Employee / Manager - Key Accounts
+    ↓ Reporting Manager
+Suresh Iyer (NX-2210) — Deputy General Manager
+    ↓
+Meera Krishnan (NX-1108) — Head of Department - Sales
+    ↓
+Arvind Rao (NX-1002) — Head of Division - Commercial
+    ↓
+Nandita Shah (NX-1000) — Managing Director
+Finance:
+Ravi Menon (NX-3305) — Finance Shared Services
+Kavitha Balan (NX-3300) — Controller
+2. Golden-path travel request
+Field
+Seed value
+Employee
+Chaitanya Reddy / NX-4471
+Destination
+Bengaluru / Vertex Technologies
+Dates
+16-Jun-2026 to 20-Jun-2026
+Purpose
+Customer meeting + site visit
+Category
+Domestic – Tier 1
+Mode
+Flight
+Estimated spend
+₹48,000
+Advance requested
+₹20,000
+Cost centre
+CE110
+3. Sample evidence to seed
+Flight: company-paid; total booking around ₹10,556; should be memo/audit data, not employee reimbursement.
+Hotel: 3 nights at ₹5,750 room tariff/night; invoice total ₹21,504 including taxes and non-reimbursable line items.
+Uber: ₹1,415.02 airport transfer; employee paid.
+Uber: ₹743 airport-to-hotel; employee paid.
+Uber: ₹172 Vertex → hotel; a failed-payment message is followed by a successful ₹172 receipt.
+Same ₹172 Uber receipt appears again as a forwarded/resend email — should be flagged as a duplicate candidate.
+Return Uber: ₹1,229.02; employee paid.
+Dinner: ₹2,255 for four people from Vertex procurement team — business entertainment, not ordinary meal allowance.
+Deepa Nair's ₹640 Uber is explicitly someone else's expense and must be rejected/flagged.
+Promotional MakeMyTrip email is irrelevant noise and should not become an expense.
+4. Hotel calculation example
+Room charges:        ₹17,250
+Taxes:                 ₹2,304
+Laundry:                 ₹450  → disallowed
+Mini bar:               ₹380  → disallowed
+In-room dining:       ₹1,120  → disallowed
+------------------------------------------------
+Invoice total:        ₹21,504
+Disallowed:            ₹1,950
+Eligible from folio:  ₹19,554
+Important: The implementation should preserve the original line items and show the disallowed amount with reasons; it must not silently drop them.
+Page 5 — Architecture & Repository Structure
+Keep the codebase boring, modular, testable, and easy to explain
+1. Recommended stack
+Next.js + TypeScript — single full-stack application to minimize operational overhead.
+Tailwind CSS + shadcn/ui — fast, consistent UI.
+PostgreSQL — relational model fits approvals, claims, expenses, audit history.
+Prisma ORM — explicit schema and migrations.
+Zod — request and domain validation.
+React Hook Form — form handling.
+Vitest/Jest + integration tests as appropriate — business-rule coverage.
+Vercel/Neon or another simple deployment pair only if deployment is straightforward; local one-command run remains mandatory.
+2. Target repository
+app/
+  (auth)/
+    login/
+  dashboard/
+  requests/
+  requests/[id]/
+  settlements/[id]/
+  approvals/
+  finance/
+  admin/
+  api/
+components/
+  ui/
+  forms/
+  workflow/
+  expenses/
+  approvals/
+lib/
+  auth/
+  db/
+  policy/
+  workflow/
+  permissions/
+  validation/
+  calculations/
+  audit/
+prisma/
+  schema.prisma
+  seed.ts
+tests/
+  unit/
+  integration/
+  e2e/
+public/
+  receipts/
+scripts/
+  seed-demo.ts
+README.md
+DESIGN_NOTE.md
+3. Architectural boundaries
+UI components display state and collect input; they should not own business policy.
+API/server actions authorize the user, validate input, call domain services, and persist results.
+Policy service decides eligibility/disallowed amounts.
+Workflow service decides valid transitions and required approval levels.
+Calculation service computes claim, disallowed, advance adjustment, payable/recoverable.
+Audit service records material actions.
+Database layer is isolated behind Prisma/repository helpers where useful.
+4. Data model
+User
+TravelRequest
+ApprovalStep
+ApprovalAction / AuditEvent
+Expense
+ExpenseDocument
+Payment
+PolicyEvaluation (optional persisted snapshot)
+Design principle: Store source values and evaluation results separately enough that Finance can understand why a number changed.
+Page 6 — Database, State Machine & APIs
+The backbone Antigravity should implement before UI
+1. Core entities
+User:
+id, employeeCode, name, email, role, designation, department,
+costCentre, city, reportingManagerId
+TravelRequest:
+id, requestNumber, employeeId, destination, startDate, endDate,
+purpose, category, mode, estimatedCost, employeeBorneEstimate,
+advanceRequested, status, createdAt, updatedAt
+ApprovalStep:
+id, travelRequestId, sequence, role, approverId, status,
+remarks, decidedAt
+Expense:
+id, travelRequestId, date, category, merchant, description,
+amount, paidBy, proofRef, status, eligibleAmount,
+disallowedAmount, validationReasons
+Payment:
+id, travelRequestId, amount, type(PAYABLE|RECOVERY),
+status, processedAt, reference
+AuditEvent:
+id, travelRequestId, actorId, action, fromStatus, toStatus,
+metadataJson, createdAt
+2. State machine
+DRAFT
+  └─ submit → SUBMITTED
+                 └─ route → PENDING_APPROVAL
+                                ├─ approve → NEXT_APPROVAL / FINANCE_REVIEW
+                                ├─ return → RETURNED
+                                └─ reject → REJECTED
+RETURNED
+  └─ employee resubmits → PENDING_APPROVAL
+FINANCE_REVIEW
+  ├─ verify → PAYMENT_PENDING
+  └─ return → RETURNED
+PAYMENT_PENDING
+  └─ release → PAID or RECOVERY_DUE
+PAID / RECOVERY_DUE = terminal demo states
+3. API / server action contract
+POST   /api/auth/demo-login
+GET    /api/requests
+POST   /api/requests
+GET    /api/requests/:id
+POST   /api/requests/:id/submit
+POST   /api/requests/:id/approve
+POST   /api/requests/:id/reject
+POST   /api/requests/:id/return
+POST   /api/requests/:id/resubmit
+POST   /api/requests/:id/expenses
+PATCH  /api/expenses/:id
+POST   /api/expenses/:id/validate
+POST   /api/requests/:id/settlement/submit
+GET    /api/approvals
+GET    /api/finance/queue
+POST   /api/claims/:id/verify
+POST   /api/claims/:id/payment
+4. Security rules
+Every mutating endpoint performs authentication and authorization server-side.
+Employee can access only own requests/settlements.
+Manager can act only on claims routed to them.
+Finance can access finance queue and payment actions.
+Never trust a client-supplied role, employeeId, approvalStepId, or eligible amount.
+Eligible/disallowed totals must be calculated on the server from source expense values and policy rules.
+Prevent invalid status transitions even if an API is called directly.
+Page 7 — Backend Build Phases
+Antigravity executes these in order and validates each phase before continuing
+Phase 1 — Repository inspection + scaffold
+Build: Inspect current repo; preserve useful files; initialize or adapt Next.js/TS; add DB/validation/test tooling; create env example; establish scripts.
+Gate: Run install, typecheck, lint, build.
+Phase 2 — Prisma schema + migrations
+Build: Implement User, TravelRequest, ApprovalStep, Expense, ExpenseDocument, Payment, AuditEvent. Add enums and constraints.
+Gate: Run migration, generate client, seed database.
+Phase 3 — Seed + demo auth/RBAC
+Build: Seed employee hierarchy and demo accounts. Implement session/role guard. Provide safe demo login.
+Gate: Test each role cannot cross boundaries.
+Phase 4 — Workflow engine
+Build: Implement approval matrix, skip-self rule, return/reject/approve transitions, resubmission, audit events.
+Gate: Unit-test thresholds and edge cases.
+Phase 5 — Policy engine
+Build: Implement lodging, meals, conveyance, business entertainment, non-reimbursables, proof requirement, duplicate candidate detection.
+Gate: Create deterministic unit tests for every policy rule.
+Phase 6 — Settlement calculations
+Build: Compute employee-paid claim, company-paid memo total, disallowed total, net reimbursable, advance adjustment, payable/recoverable.
+Gate: Test exact arithmetic with sample trip.
+Phase 7 — Finance workflow
+Build: Finance queue, verification, return, payment/recovery state, audit trail.
+Gate: Test finance cannot bypass business approvals.
+Backend implementation prompt
+You are now in BACKEND MODE.
+Implement Phases 1–7 from the attached execution plan.
+Do not start with UI.
+Rules:
+1. Inspect the repository first.
+2. Preserve existing useful code and conventions.
+3. Implement the database schema and migrations before business APIs.
+4. Centralize approval, policy, calculation, permission, and state-transition logic.
+5. Seed the supplied employee hierarchy and the Chaitanya trip.
+6. Use server-side authorization and server-side financial calculations.
+7. Add unit/integration tests for thresholds, non-reimbursables,
+   duplicates, self-approval, return/resubmit, advance adjustment,
+   payable/recoverable, and proof requirements.
+8. Run typecheck/lint/build/tests after each major phase.
+9. Fix failures before proceeding.
+10. Do not add speculative features.
+At the end, leave the repository in a runnable state and write a short
+IMPLEMENTATION_STATUS.md containing:
+- completed phases
+- commands run
+- test results
+- known issues
+- any assumption you made
+- exact command to start the backend/full app
+Page 8 — Frontend Build Phases
+Build only after backend contracts and seeded data are stable
+Phase 8 — App shell + navigation
+Role-aware navigation, top bar, sidebar, responsive layout, loading/error/empty states.
+Phase 9 — Employee dashboard
+Cards for pending requests, approved requests, claim amount, advance, payable/recoverable; recent requests.
+Phase 10 — Travel request UX
+Create/edit/submit request; show estimated employee-borne cost and advance validation; show approval path.
+Phase 11 — Manager approvals
+Approval queue, filters, claim detail, approve/reject/return actions, mandatory remarks for return/reject.
+Phase 12 — Settlement UX
+Expense entry, proof upload/reference, line-item policy evaluation, eligible/disallowed breakdown, duplicate warnings.
+Phase 13 — Finance/Admin
+Finance queue, verification screen, payment/recovery action, audit timeline, policy exception visibility.
+Phase 14 — Demo data + polish
+Preload the supplied trip; make the golden path obvious; add concise toasts, confirmation dialogs, and clear status badges.
+Frontend rules
+Do not duplicate business calculations in React.
+Use API responses as the source of truth.
+Disable actions when the server says the action is invalid, but still enforce validity server-side.
+Show why an expense is disallowed instead of just showing a red number.
+Show status transitions as a simple timeline.
+Use tables for queues and cards only where they improve scanning.
+Keep the UI professional and restrained; no time-consuming animation.
+Every destructive/financial action needs confirmation.
+Show empty, loading, error, and success states.
+Use seeded sample data so the reviewer can evaluate the product without manual setup.
+Frontend implementation prompt
+You are now in FRONTEND MODE.
+Build Phases 8–14 against the existing backend contracts.
+Do not rewrite the backend to make the UI easier.
+Requirements:
+- Employee, Manager/HOD/HODiv/MD, and Finance/Admin views.
+- Clear role-aware navigation.
+- Travel request form and status timeline.
+- Approval queue and claim detail.
+- Settlement expense editor with policy evaluation.
+- Eligible/disallowed/advance/payable/recoverable summary.
+- Duplicate and policy warnings.
+- Finance verification and payment/recovery workflow.
+- Responsive desktop-first UI.
+- Accessible labels, useful empty states, loading states, errors.
+- Use existing components and API contracts where possible.
+After implementation:
+1. Run typecheck/lint/build/tests.
+2. Fix all compile/runtime issues.
+3. Verify every role's navigation and permissions.
+4. Verify the golden-path seeded trip end to end.
+5. Do not add unrelated features.
+Page 9 — Testing & Review Plan
+This page is mandatory: the assignment explicitly evaluates how well the work is reviewed and tested
+1. Unit tests — policy engine
+Tier 1 hotel at ₹6,000/night → fully eligible tariff.
+Tier 1 hotel at ₹6,500/night → ₹500 tariff excess disallowed for that night.
+Taxes on room tariff → eligible.
+Laundry/minibar/in-room dining → disallowed.
+Tier 1 meals ≤ ₹1,500/day → eligible actuals.
+Meal > ₹500 without proof → returned/invalid.
+Local conveyance with receipt → eligible actuals.
+Business entertainment > ₹2,000 without HOD prior approval → exception/return.
+Expense paid by another person → disallowed.
+Company-paid flight → memo only, not reimbursed.
+Duplicate bill → policy warning/breach.
+2. Unit tests — approval engine
+₹25,000 → Reporting Manager only.
+₹25,001 → Reporting Manager + HOD.
+₹75,000 → Reporting Manager + HOD.
+₹75,001 → Reporting Manager + HOD + HODiv.
+₹2,00,000 → Reporting Manager + HOD + HODiv.
+₹2,00,001 → + MD/CEO.
+International → + MD/CEO regardless of amount.
+Claimant cannot approve own claim.
+If claimant is reporting manager for a level, skip that level.
+Return requires remarks and allows resubmission against same Travel Request ID.
+3. Integration tests
+Employee creates → submits → manager sees it.
+Manager approves → next approval appears.
+Manager returns → employee sees returned status and remark.
+Employee resubmits → workflow resumes correctly.
+Finance cannot verify before required business approvals.
+Payment cannot occur before finance verification.
+Employee cannot access another employee's request by changing an ID in the URL/API.
+Employee cannot call approval/payment endpoints successfully.
+4. Golden-path manual test
+1. Login as Chaitanya.
+2. Open seeded Bengaluru trip.
+3. Confirm request + ₹20,000 advance.
+4. Login as Suresh → approve.
+5. Login as Chaitanya → open settlement.
+6. Add hotel invoice.
+7. Add Uber expenses.
+8. Add dinner as Business Entertainment.
+9. Add Deepa's ₹640 → verify rejection/flag.
+10. Add duplicate ₹172 → verify duplicate warning.
+11. Submit settlement.
+12. Login as Finance.
+13. Verify policy exceptions and net amount.
+14. Release payment OR show recovery if claim < advance.
+15. Verify audit timeline.
+5. Review questions before submission
+Can I explain why every table exists?
+Can I explain where approval thresholds live?
+Can I explain how the server prevents tampering with eligible amounts?
+Can I explain how duplicates are detected?
+Can I explain why company-paid items are not reimbursed?
+Can I explain how return/resubmit works?
+Can I explain what I intentionally did not build and why?
+Can I reproduce the golden path from a clean checkout?
+Page 10 — Autonomous Antigravity Master Prompt
+Paste this after giving Antigravity access to the assignment files/repository
+MASTER PROMPT
+ROLE
+You are the lead engineer responsible for implementing the AI Planet take-home
+Travel Expense Reimbursement prototype in this repository.
+CONTEXT
+The repository is accompanied by the supplied Nortex Industries assignment pack.
+Treat the source pack as the specification. Important source files include:
+- PROBLEM_STATEMENT.md
+- expense_policy.md
+- employee_master.csv
+- Travel_Expense_Forms_Template.xlsx
+- sample_emails/*
+- receipts/*
+MISSION
+Build the complete working prototype end to end while I am away.
+Prioritize correctness, architecture, role-based workflow, business-rule
+enforcement, reviewability, and a clean demo over feature count.
+IMPORTANT
+The evaluator explicitly permits AI coding tools and evaluates critical thinking,
+architecture, review, and testing. Therefore do not blindly generate code.
+Use a small, coherent architecture and validate your own work continuously.
+EXECUTION ORDER
+A. Inspect repository and source pack.
+B. Create/confirm architecture and file structure.
+C. Implement backend/data model first.
+D. Implement policy engine and workflow engine.
+E. Implement seed/demo data and authentication/RBAC.
+F. Implement settlement calculations.
+G. Implement frontend against stable backend contracts.
+H. Run tests and build.
+I. Run an end-to-end golden-path verification.
+J. Fix defects.
+K. Prepare README and DESIGN_NOTE.md.
+L. Leave the repository in a clean runnable state.
+DO NOT
+- build Gmail ingestion
+- build OCR
+- build real payment integration
+- build a configurable six-step workflow editor
+- add unnecessary microservices
+- add speculative dependencies
+- duplicate business logic in frontend
+- trust client-provided financial totals or roles
+- silently remove disallowed expenses
+- bypass workflow rules to make the demo work
+- stop after scaffolding
+- leave known compile/test failures unresolved
+BUSINESS REQUIREMENTS
+Implement:
+- Employee role
+- Manager/HOD/HODiv/MD approval roles
+- Finance role
+- Travel Request
+- dynamic approval matrix
+- approve/reject/return/resubmit
+- settlement
+- expense lines
+- proof requirement
+- policy evaluation
+- duplicate warning
+- company-vs-employee paid
+- advance adjustment
+- payable/recoverable
+- finance verification
+- payment/recovery status
+- audit timeline
+APPROVAL MATRIX
+<= 25,000: Reporting Manager
+25,001–75,000: Reporting Manager + HOD
+75,001–200,000: Reporting Manager + HOD + HODiv
+> 200,000 OR international: + MD/CEO
+Finance verification follows business approvals.
+POLICY RULES
+Tier 1 lodging room tariff: 6,000/night
+Tier 2: 4,000/night
+Tier 3/other: 2,800/night
+Taxes on room tariff reimbursable.
+Excess tariff is disallowed and visible.
+Domestic air: economy, centrally booked/company paid, not employee reimbursement.
+Meals: Tier 1 1,500/day; Tier 2/below 1,000/day.
+Meals above 500 require bills.
+Local conveyance: actuals with receipt.
+Business entertainment: separate category; attendees/org required;
+>2,000 requires prior HOD approval.
+Never reimburse laundry, minibar, in-room entertainment, spa, gym,
+personal phone/data, fines, independent travel insurance, or another person's expense.
+Every claim line needs proof.
+Duplicate bills are policy breaches.
+Settlement due within 7 calendar days of return.
+Advance <= 60% of estimated employee-borne cost.
+If net claim < advance, calculate recovery.
+DATA / GOLDEN PATH
+Seed Chaitanya Reddy (NX-4471) with reporting chain:
+Suresh Iyer → Meera Krishnan → Arvind Rao → Nandita Shah.
+Seed the supplied Bengaluru trip and relevant evidence.
+Preserve source values; do not hard-code calculated totals into UI.
+ENGINEERING REQUIREMENTS
+- TypeScript strict mode if compatible with repo.
+- Centralized domain services.
+- Server-side RBAC.
+- Server-side policy and financial calculations.
+- Zod or equivalent request validation.
+- Prisma/PostgreSQL or the repository's already-established relational stack.
+- Audit event for material workflow changes.
+- Meaningful tests for business rules.
+- One-command local startup documented.
+- Environment variables documented in .env.example.
+- No secrets committed.
+AUTONOMY
+You have permission to continue through all phases without waiting for me
+when the next step is deterministic.
+If a non-critical ambiguity exists, choose the simplest defensible behavior
+and document it.
+If you encounter a technical failure, diagnose and fix it rather than stopping.
+Do not repeatedly ask for confirmation.
+Page 11 — Agent Operating Protocol & Recovery
+How Antigravity should behave for 1–2 hours without supervision
+1. Work loop
+INSPECT
+  ↓
+PLAN SMALL STEP
+  ↓
+IMPLEMENT
+  ↓
+RUN TYPECHECK / LINT / TEST
+  ↓
+FIX
+  ↓
+COMMIT/SAFE CHECKPOINT
+  ↓
+NEXT STEP
+2. Checkpoint protocol
+Create a git commit after each stable major phase if git is available.
+Use descriptive commit messages such as backend/schema, workflow-engine, policy-engine, settlement, frontend, testing.
+Do not rewrite a working subsystem merely to make generated code prettier.
+Keep migrations and seed scripts deterministic.
+Do not delete source-pack files; copy or reference them as needed.
+3. Failure handling
+IF dependency install fails:
+  diagnose package/version/network issue;
+  use compatible versions already present;
+  do not switch frameworks.
+IF database unavailable:
+  keep schema/migrations valid;
+  use local PostgreSQL/SQLite only if the architecture supports it cleanly;
+  document exact setup requirement.
+IF a test fails:
+  inspect the failure;
+  determine whether code or test expectation is wrong;
+  fix the underlying issue;
+  rerun the affected suite.
+IF UI/API mismatch:
+  inspect API contract and response shape;
+  fix one source of truth rather than adding adapters everywhere.
+IF time becomes constrained:
+  stop visual polish;
+  prioritize end-to-end employee → approval → settlement → finance.
+4. Definition of done
+Clean install works.
+Database migration works.
+Seed works.
+App starts with documented command.
+All roles can log in/demo safely.
+Employee can create/submit request.
+Correct approver receives it.
+Approver can approve/reject/return.
+Employee can submit settlement.
+Policy engine produces explainable results.
+Finance can verify and complete payment/recovery.
+Invalid role/action/state transitions are blocked.
+Tests pass.
+Production build passes.
+README contains setup and demo credentials.
+DESIGN_NOTE.md is one page or less.
+No secrets committed.
+5. Final autonomous prompt
+Continue until the definition of done is satisfied.
+Before stopping:
+- run the full test suite
+- run typecheck
+- run lint
+- run production build
+- start the app and perform the golden-path flow if tooling allows
+- inspect browser console/server logs for errors
+- verify seeded accounts and sample trip
+- verify financial totals are server-derived
+- verify RBAC by attempting unauthorized actions
+- write IMPLEMENTATION_STATUS.md
+- update README.md
+- create DESIGN_NOTE.md
+Do not claim completion unless the commands actually pass.
+If something cannot be completed, leave the repository runnable,
+document the exact blocker and provide the smallest safe workaround.
+Page 12 — Morning Handoff, Submission & Demo
+When Shane wakes up: test first, polish second, submit third
+1. First 20 minutes after waking
+Read IMPLEMENTATION_STATUS.md.
+Run the documented install/migration/seed/start commands yourself.
+Open the application and confirm it actually starts.
+Login as employee, manager, and finance/admin.
+Run the golden path without changing code.
+Inspect browser console and server terminal for errors.
+Test one unauthorized action manually.
+2. Next 30–45 minutes: defect sweep
+Fix broken workflow before visual issues.
+Fix money calculations before typography.
+Fix RBAC before dashboard polish.
+Ensure returned claims can be corrected/resubmitted.
+Ensure duplicate/Deepa/company-paid cases behave sensibly.
+Ensure hotel disallowed items remain visible with reasons.
+Ensure payable/recoverable cannot both be non-zero.
+3. Final delivery package
+/repo
+  README.md
+  DESIGN_NOTE.md
+  IMPLEMENTATION_STATUS.md
+  .env.example
+  prisma/
+  app/
+  components/
+  lib/
+  tests/
+4. One-page design note content
+Problem understood: manual reconstruction of travel settlement causes effort, errors, and Finance follow-ups.
+Assumptions: demo authentication; seeded source-pack trip; prototype payment state rather than real transfer; deterministic policy engine.
+Architecture: Next.js/TypeScript + PostgreSQL/Prisma + centralized workflow/policy services.
+Built: employee request, approval chain, settlement, policy checks, finance verification/payment state, audit trail.
+Deliberately left out: Gmail/OCR/LLM ingestion, real payment, configurable workflow builder, enterprise SSO.
+Known limitations: document extraction is manual; duplicate detection is heuristic; payment is simulated.
+5. 3–5 minute recording script
+0:00–0:20  Problem + architecture
+0:20–1:00  Employee dashboard + travel request
+1:00–1:35  Manager approval
+1:35–2:30  Settlement + expense policy evaluation
+2:30–3:05  Duplicate / other-person / disallowed examples
+3:05–3:45  Finance verification + payable/recovery
+3:45–4:15  Audit timeline + RBAC
+4:15–4:40  Architecture choices + deliberate omissions
+4:40–5:00  Close
+6. Final submission checklist
+Running app or repo with one-command setup.
+README has setup, env, seed, demo users, and run command.
+DESIGN_NOTE.md ≤ 1 page.
+3–5 minute screen recording.
+No secrets or personal credentials.
+Golden path works from clean start.
+Tests/typecheck/build pass.
+Known limitations are honestly stated.
+Email submission includes running link/repo + short note + video link.
+7. Final instruction to Antigravity
+Build the smallest credible system that proves the reasoning. Do not optimize for lines of code or visual sophistication. Optimize for a reviewer being able to understand the workflow, trust the calculations, test the roles, and believe the architecture could be extended into a production system.

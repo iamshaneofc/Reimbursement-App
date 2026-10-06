@@ -1,0 +1,171 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                 String          @id @default(cuid())
+  empCode            String          @unique
+  name               String
+  email              String          @unique
+  designation        String
+  department         String
+  costCentre         String
+  city               String
+  role               String          // Employee, Reporting Manager, Head of Department, Head of Division, MD, Finance, Admin
+  reportingManagerId String?
+  reportingManager   User?           @relation("ManagerReports", fields: [reportingManagerId], references: [id])
+  directReports      User[]          @relation("ManagerReports")
+  travelRequests     TravelRequest[]
+  assignedSteps      ApprovalStep[]  @relation("ApproverSteps")
+  auditEvents        AuditEvent[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([empCode])
+  @@index([email])
+  @@index([role])
+}
+
+model TravelRequest {
+  id                    String          @id @default(cuid())
+  requestNumber         String          @unique
+  employeeId            String
+  employee              User            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  destination           String
+  cityClass             String          @default("Tier 1") // Tier 1, Tier 2, Tier 3
+  startDate             DateTime
+  endDate               DateTime
+  purpose               String
+  category              String          @default("Domestic") // Domestic, International
+  mode                  String          @default("Flight") // Flight, Train, Cab, Personal Vehicle
+  estimatedCost         Float
+  employeeBorneEstimate Float
+  advanceRequested      Float           @default(0)
+  advanceDisbursed      Float           @default(0)
+  advanceReference      String?
+  status                String          @default("DRAFT")
+  // Status flow: DRAFT -> SUBMITTED -> PENDING_APPROVAL -> APPROVED -> SETTLEMENT_DRAFT -> SETTLEMENT_SUBMITTED -> FINANCE_REVIEW -> PAYMENT_PENDING / RECOVERY_DUE -> PAID / RECOVERED | RETURNED | REJECTED
+  currentStepSequence   Int             @default(1)
+  rejectionReason       String?
+  returnRemarks         String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+
+  approvalSteps         ApprovalStep[]
+  expenses              Expense[]
+  documents             ExpenseDocument[]
+  payments              Payment[]
+  auditEvents           AuditEvent[]
+
+  @@index([employeeId])
+  @@index([status])
+  @@index([requestNumber])
+}
+
+model ApprovalStep {
+  id              String        @id @default(cuid())
+  travelRequestId String
+  travelRequest   TravelRequest @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+  sequence        Int           // 1 = Reporting Manager, 2 = HOD, 3 = HODiv, 4 = MD
+  role            String        // Reporting Manager, Head of Department, Head of Division, MD, Finance
+  approverId      String?
+  approver        User?         @relation("ApproverSteps", fields: [approverId], references: [id])
+  status          String        @default("PENDING") // PENDING, APPROVED, REJECTED, RETURNED, SKIPPED
+  remarks         String?
+  decidedAt       DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([travelRequestId])
+  @@index([approverId])
+  @@index([status])
+}
+
+model Expense {
+  id                String            @id @default(cuid())
+  travelRequestId   String
+  travelRequest     TravelRequest     @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+  date              DateTime
+  category          String            // Lodging, Transportation, Meals, Business Entertainment, Other
+  merchant          String
+  description       String
+  billNumber        String?
+  amount            Float             // Invoice amount
+  paidBy            String            @default("EMPLOYEE") // EMPLOYEE, COMPANY
+  proofRef          String?           // File name or link to receipt
+  proofVerified     Boolean           @default(false)
+  attendees         String?           // For Business Entertainment
+  hodApprovalPrior  Boolean           @default(false)      // For Business Entertainment > INR 2000
+  status            String            @default("VALID")    // VALID, FLAGGED, DISALLOWED
+  eligibleAmount    Float             @default(0)
+  disallowedAmount  Float             @default(0)
+  validationReasons String?           // JSON string of reasons
+  isDuplicate       Boolean           @default(false)
+  duplicateRefId    String?
+  isSomeoneElse     Boolean           @default(false)
+  documents         ExpenseDocument[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([travelRequestId])
+  @@index([category])
+  @@index([merchant])
+  @@index([date])
+}
+
+model ExpenseDocument {
+  id              String        @id @default(cuid())
+  travelRequestId String
+  travelRequest   TravelRequest @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+  expenseId       String?
+  expense         Expense?      @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  fileName        String
+  fileUrl         String
+  fileType        String
+  fileSize        Int
+  uploadedAt      DateTime      @default(now())
+
+  @@index([travelRequestId])
+  @@index([expenseId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  travelRequestId String
+  travelRequest   TravelRequest @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+  amount          Float
+  type            String        // PAYABLE (Company owes employee), RECOVERY (Employee owes company)
+  status          String        @default("PENDING") // PENDING, PROCESSED, CANCELLED
+  reference       String?       // Payment reference or deduction voucher
+  processedAt     DateTime?
+  processedBy     String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+
+  @@index([travelRequestId])
+  @@index([status])
+}
+
+model AuditEvent {
+  id              String        @id @default(cuid())
+  travelRequestId String
+  travelRequest   TravelRequest @relation(fields: [travelRequestId], references: [id], onDelete: Cascade)
+  actorId         String?
+  actor           User?         @relation(fields: [actorId], references: [id])
+  actorName       String
+  actorRole       String
+  action          String        // CREATE_REQUEST, SUBMIT_REQUEST, APPROVE_REQUEST, RETURN_REQUEST, REJECT_REQUEST, RESUBMIT_REQUEST, ADD_EXPENSE, SUBMIT_SETTLEMENT, VERIFY_FINANCE, PROCESS_PAYMENT, PROCESS_RECOVERY
+  fromStatus      String?
+  toStatus        String?
+  metadata        String?       // JSON string with extra details
+  createdAt       DateTime      @default(now())
+
+  @@index([travelRequestId])
+  @@index([actorId])
+  @@index([createdAt])
+}
