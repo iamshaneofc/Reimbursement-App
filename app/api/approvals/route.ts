@@ -7,16 +7,10 @@ export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth();
 
-    // Fetch requests where the current user is assigned to the pending approval step
+    // Fetch all requests currently awaiting approval
     const pendingRequests = await prisma.travelRequest.findMany({
       where: {
         status: 'PENDING_APPROVAL',
-        approvalSteps: {
-          some: {
-            approverId: session.userId,
-            status: 'PENDING',
-          },
-        },
       },
       include: {
         employee: {
@@ -35,7 +29,29 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    const enriched = pendingRequests.map((req) => {
+    // Filter to requests specifically assigned to this manager at the active sequence
+    const assignedToUser = pendingRequests.filter((req) => {
+      // Claimant can never approve their own request
+      if (req.employeeId === session.userId) return false;
+
+      const activeStep = req.approvalSteps.find(
+        (s) => s.sequence === req.currentStepSequence && s.status === 'PENDING'
+      );
+      if (!activeStep) return false;
+
+      // Admin can see all pending
+      if (session.role === 'Admin') return true;
+
+      // Assigned by exact approver ID
+      if (activeStep.approverId === session.userId) return true;
+
+      // Or matching role if approverId is null / hierarchy fallback
+      if (activeStep.role === session.role) return true;
+
+      return false;
+    });
+
+    const enriched = assignedToUser.map((req) => {
       const currentStep = req.approvalSteps.find((s) => s.sequence === req.currentStepSequence);
       const summary = calculateSettlementSummary(req.expenses, req.advanceDisbursed);
       return {
