@@ -39,3 +39,11 @@ dev.db-wal
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch files
+scratch/
+
+# user uploaded files
+public/uploads/*
+!public/uploads/.gitkeep
+

@@ -5,7 +5,8 @@
   "description": "Nortex Industries Travel & Expense Reimbursement Platform - AI Planet Take-Home",
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && next build",
+    "build": "prisma generate && prisma db push --accept-data-loss && npx tsx prisma/seed.ts && next build",
+    "render-build": "prisma generate && prisma db push --accept-data-loss && npx tsx prisma/seed.ts && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
@@ -16,6 +17,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
+  },
+  "engines": {
+    "node": ">=18.18.0"
   },
   "dependencies": {
     "@prisma/client": "^5.21.1",
