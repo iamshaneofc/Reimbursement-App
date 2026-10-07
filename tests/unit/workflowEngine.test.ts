@@ -68,6 +68,40 @@ describe('Workflow Engine - Unit Tests', () => {
     expect(steps[1].status).toBe('SKIPPED');
   });
 
+  it('22b. Reporting Manager submitting request skips self and routes to HOD', () => {
+    // Suresh Iyer (Reporting Manager) submits a request for 15,000 (which normally requires RM only)
+    const claimantSuresh = {
+      id: 'suresh-id',
+      empCode: 'NX-2210',
+      role: 'Reporting Manager',
+      reportingManager: {
+        id: 'meera-id',
+        empCode: 'NX-1108',
+        role: 'Head of Department',
+        reportingManager: {
+          id: 'arvind-id',
+          empCode: 'NX-1002',
+          role: 'Head of Division',
+        },
+      },
+    };
+
+    const steps15k = buildApprovalSteps(claimantSuresh, 15000, 'Domestic');
+    // Step 1: Reporting Manager (Suresh himself) -> SKIPPED
+    // Step 2: Next approver up hierarchy -> HOD (Meera) -> PENDING
+    expect(steps15k[0].status).toBe('SKIPPED');
+    expect(steps15k[0].approverId).toBe('suresh-id');
+    expect(steps15k[1].status).toBe('PENDING');
+    expect(steps15k[1].approverId).toBe('meera-id');
+    expect(steps15k[1].role).toBe('Head of Department');
+
+    // Suresh submits 50,000 (requires RM + HOD)
+    const steps50k = buildApprovalSteps(claimantSuresh, 50000, 'Domestic');
+    expect(steps50k[0].status).toBe('SKIPPED');
+    expect(steps50k[1].status).toBe('PENDING');
+    expect(steps50k[1].approverId).toBe('meera-id');
+  });
+
   it('23-26. Workflow State Machine Validations', () => {
     // Valid transitions
     expect(isValidStatusTransition('DRAFT', 'SUBMITTED')).toBe(true);

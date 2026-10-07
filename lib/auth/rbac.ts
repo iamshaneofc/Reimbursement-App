@@ -33,12 +33,17 @@ export function canApproveStep(
     return false;
   }
 
-  // 2. If directly assigned to a specific manager ID, only that manager can act
+  // 2. Admin is an organisation/platform oversight role and has no business approval authority
+  if (user.role === 'Admin') {
+    return false;
+  }
+
+  // 3. If directly assigned to a specific manager ID, only that manager can act
   if (step.approverId) {
     return user.userId === step.approverId;
   }
 
-  // 3. Fallback to role-level matching if no specific approverId is bound
+  // 4. Fallback to role-level matching if no specific approverId is bound
   const managementRoles = ['Reporting Manager', 'Head of Department', 'Head of Division', 'MD', 'Manager'];
   if (!managementRoles.includes(user.role)) {
     return false;

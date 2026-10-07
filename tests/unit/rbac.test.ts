@@ -120,4 +120,24 @@ describe('RBAC & Security Token Tests', () => {
     expect(canExecuteFinanceMutation({ role: 'Employee' })).toBe(false);
     expect(canExecuteFinanceMutation({ role: 'Reporting Manager' })).toBe(false);
   });
+
+  it('9. Admin is strictly forbidden from executing business approval steps', () => {
+    const step = { approverId: 'user-suresh', role: 'Reporting Manager' };
+    const claimantId = 'user-chaitanya';
+
+    expect(canApproveStep({ role: 'Admin', userId: 'user-admin' }, step, claimantId)).toBe(false);
+    expect(canApproveStep({ role: 'Admin', userId: 'user-admin' }, { role: 'Reporting Manager' }, claimantId)).toBe(false);
+  });
+
+  it('10. Manager cannot approve their own claim; routes to HOD who can approve', () => {
+    const stepAssignedToSuresh = { approverId: 'user-suresh', role: 'Reporting Manager' };
+    const stepAssignedToMeera = { approverId: 'user-meera', role: 'Head of Department' };
+
+    // Suresh creates claim -> Suresh cannot approve
+    expect(canApproveStep({ role: 'Reporting Manager', userId: 'user-suresh' }, stepAssignedToSuresh, 'user-suresh')).toBe(false);
+    expect(canApproveStep({ role: 'Reporting Manager', userId: 'user-suresh' }, stepAssignedToMeera, 'user-suresh')).toBe(false);
+
+    // Meera (HOD) can approve Suresh's step assigned to her
+    expect(canApproveStep({ role: 'Head of Department', userId: 'user-meera' }, stepAssignedToMeera, 'user-suresh')).toBe(true);
+  });
 });

@@ -39,19 +39,21 @@ export async function POST(
     }
 
     // Reset approval steps to PENDING if previously returned
+    const firstActiveStep = request.approvalSteps.find((s) => s.status !== 'SKIPPED');
+    const initialActiveSequence = firstActiveStep ? firstActiveStep.sequence : 1;
+
     await prisma.$transaction(async (tx) => {
       await tx.travelRequest.update({
         where: { id },
         data: {
           status: nextStatus,
-          currentStepSequence: 1,
+          currentStepSequence: initialActiveSequence,
           returnRemarks: null,
           rejectionReason: null,
         },
       });
 
       // Update first non-skipped step to PENDING
-      const firstActiveStep = request.approvalSteps.find((s) => s.status !== 'SKIPPED');
       if (firstActiveStep) {
         await tx.approvalStep.update({
           where: { id: firstActiveStep.id },

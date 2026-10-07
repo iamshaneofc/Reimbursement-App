@@ -124,6 +124,19 @@ export function buildApprovalSteps(
     }
   }
 
+  // If all steps were skipped because requester holds the required role(s),
+  // route to the next appropriate manager up the reporting hierarchy
+  const hasActiveStep = steps.some((s) => s.status !== 'SKIPPED');
+  if (!hasActiveStep && hierarchyChain.length > 0) {
+    const nextApprover = hierarchyChain[0];
+    steps.push({
+      sequence: seq++,
+      role: nextApprover.role,
+      approverId: nextApprover.id,
+      status: 'PENDING',
+    });
+  }
+
   return steps;
 }
 

@@ -32,6 +32,7 @@ export default function ApprovalsQueuePage() {
     avgDecisionHours: '2.4',
   });
   const [activeTab, setActiveTab] = useState<'PENDING' | 'HISTORY'>('PENDING');
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -44,9 +45,16 @@ export default function ApprovalsQueuePage() {
   const loadApprovals = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/approvals');
-      if (res.ok) {
-        const data = await res.json();
+      const [appRes, userRes] = await Promise.all([
+        fetch('/api/approvals'),
+        fetch('/api/auth/me'),
+      ]);
+      if (userRes.ok) {
+        const u = await userRes.json();
+        setCurrentUser(u.user);
+      }
+      if (appRes.ok) {
+        const data = await appRes.json();
         setApprovals(data.approvals || []);
         setHistory(data.history || []);
         if (data.stats) {
@@ -65,7 +73,7 @@ export default function ApprovalsQueuePage() {
   }, []);
 
   const handleDecision = async () => {
-    if (!activeRequest || !dialogAction) return;
+    if (!activeRequest || !dialogAction || currentUser?.role === 'Admin') return;
     setActionLoading(true);
     setError(null);
     try {
@@ -115,22 +123,38 @@ export default function ApprovalsQueuePage() {
     );
   });
 
+  const isAdmin = currentUser?.role === 'Admin';
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">Manager Approval Workspace</h1>
+            <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+              {isAdmin ? 'Organisation Approval Oversight' : 'Manager Approval Workspace'}
+            </h1>
             <span className="px-2.5 py-0.5 bg-amber-100 text-amber-900 font-bold text-xs rounded-full">
               {stats.pendingCount} Pending Decision
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Review and govern travel authorizations, advance disbursements, and policy compliance for your assigned team members
+            {isAdmin
+              ? 'Organization-wide read visibility into all travel authorization queues across departments and manager decision histories'
+              : 'Review and govern travel authorizations, advance disbursements, and policy compliance for your assigned team members'}
           </p>
         </div>
       </div>
+
+      {/* Admin Read-Only Info Banner */}
+      {isAdmin && (
+        <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center gap-2.5 text-xs text-indigo-900">
+          <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+          <span>
+            <strong>Admin Read-Only Oversight:</strong> You have full visibility into travel authorization queues across departments. Business approvals, returns, and rejections are strictly governed by the designated reporting hierarchy (Reporting Manager &rarr; HOD &rarr; HODiv &rarr; MD).
+          </span>
+        </div>
+      )}
 
       {/* Notifications */}
       {successMsg && (
@@ -312,38 +336,42 @@ export default function ApprovalsQueuePage() {
                           <span>Inspect</span>
                         </Link>
 
-                        <button
-                          onClick={() => {
-                            setActiveRequest(req);
-                            setDialogAction('APPROVE');
-                          }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Approve</span>
-                        </button>
+                        {!isAdmin && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setActiveRequest(req);
+                                setDialogAction('APPROVE');
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Approve</span>
+                            </button>
 
-                        <button
-                          onClick={() => {
-                            setActiveRequest(req);
-                            setDialogAction('RETURN');
-                          }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs transition"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Return</span>
-                        </button>
+                            <button
+                              onClick={() => {
+                                setActiveRequest(req);
+                                setDialogAction('RETURN');
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-xs transition"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Return</span>
+                            </button>
 
-                        <button
-                          onClick={() => {
-                            setActiveRequest(req);
-                            setDialogAction('REJECT');
-                          }}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Reject</span>
-                        </button>
+                            <button
+                              onClick={() => {
+                                setActiveRequest(req);
+                                setDialogAction('REJECT');
+                              }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-xs transition"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              <span>Reject</span>
+                            </button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -422,7 +450,7 @@ export default function ApprovalsQueuePage() {
       </div>
 
       {/* Decision Modal with Confirmation & Mandatory Remarks for Reject/Return */}
-      {dialogAction && activeRequest && (
+      {dialogAction && activeRequest && !isAdmin && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-elevation border border-slate-200 space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <h3 className="text-base font-bold text-slate-900">

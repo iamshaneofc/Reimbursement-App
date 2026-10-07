@@ -33,6 +33,7 @@ import {
   Upload,
   Download,
   Paperclip,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function RequestDetailPage({ params }: { params: { id: string } }) {
@@ -116,6 +117,7 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
   };
 
   const handleDecision = async (action: 'APPROVE' | 'REJECT' | 'RETURN') => {
+    if (currentUser?.role === 'Admin') return;
     setActionLoading(true);
     setError(null);
     try {
@@ -200,8 +202,8 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
   const isCurrentApprover =
     currentStep &&
     currentUser &&
+    currentUser.role !== 'Admin' &&
     (currentStep.approverId === currentUser.id ||
-      currentUser.role === 'Admin' ||
       currentUser.role === currentStep.role);
   const isOwner = currentUser && request.employeeId === currentUser.id;
   const expensesList = request.expenses || [];
@@ -325,6 +327,16 @@ export default function RequestDetailPage({ params }: { params: { id: string } }
                 Reject
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Admin Read-Only Info Banner if pending */}
+        {currentUser?.role === 'Admin' && request.status === 'PENDING_APPROVAL' && (
+          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex items-center gap-3 text-xs text-indigo-900">
+            <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>
+              <strong>Admin Read-Only Oversight:</strong> You have audit visibility into this travel authorization. Approvals, returns, and rejections are strictly governed by the assigned manager in the reporting hierarchy.
+            </span>
           </div>
         )}
 

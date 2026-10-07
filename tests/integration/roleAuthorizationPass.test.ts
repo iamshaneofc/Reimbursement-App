@@ -252,7 +252,7 @@ describe('FINAL PRODUCT ROLE + ADMIN + MANAGER AUTHORIZATION PASS (15 Scenarios)
     expect(canFinanceApproveBusinessStep).toBe(false);
   });
 
-  it('SCENARIO L — Admin can see organisation-wide data', () => {
+  it('SCENARIO L — Admin can see organisation-wide data but CANNOT approve business steps', () => {
     const chaitanyaRequest = {
       employeeId: chaitanyaUser.id,
       approvalSteps: [{ approverId: sureshManager.id, role: 'Reporting Manager' }],
@@ -261,6 +261,9 @@ describe('FINAL PRODUCT ROLE + ADMIN + MANAGER AUTHORIZATION PASS (15 Scenarios)
     expect(canViewRequest({ userId: adminUser.id, role: 'Admin' }, chaitanyaRequest)).toBe(true);
     expect(canAccessAdmin({ role: 'Admin' })).toBe(true);
     expect(canAccessFinance({ role: 'Admin' })).toBe(true);
+
+    // Admin cannot execute business approvals
+    expect(canApproveStep({ userId: adminUser.id, role: 'Admin' }, chaitanyaRequest.approvalSteps[0], chaitanyaUser.id)).toBe(false);
   });
 
   it('SCENARIO M & N — Admin Category CRUD & Dynamic Active Filtering', async () => {

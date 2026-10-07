@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
           advanceRequested: parsed.advanceRequested,
           advanceDisbursed: 0,
           status: 'DRAFT',
-          currentStepSequence: 1,
+          currentStepSequence: stepConfigs.find((s) => s.status !== 'SKIPPED')?.sequence || 1,
         },
       });
 
