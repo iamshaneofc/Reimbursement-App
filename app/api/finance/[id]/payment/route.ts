@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/session';
 import { calculateSettlementSummary } from '@/lib/calculations/settlementCalculator';
 import { logAuditEvent } from '@/lib/audit/auditLogger';
+import { canExecuteFinanceMutation } from '@/lib/auth/rbac';
 
 export async function POST(
   req: NextRequest,
@@ -13,8 +14,8 @@ export async function POST(
     const { id } = params;
     const body = await req.json().catch(() => ({}));
 
-    if (!['Finance', 'Admin'].includes(session.role)) {
-      return NextResponse.json({ error: 'Access denied: Finance role required' }, { status: 403 });
+    if (!canExecuteFinanceMutation(session)) {
+      return NextResponse.json({ error: 'Access denied: Only authorized Finance Shared Services personnel can execute payment or recovery disbursements' }, { status: 403 });
     }
 
     const request = await prisma.travelRequest.findUnique({

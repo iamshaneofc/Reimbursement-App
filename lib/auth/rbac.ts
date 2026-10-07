@@ -88,10 +88,19 @@ export function canViewRequest(
 }
 
 /**
- * Checks if a user has access to finance actions (payments, payout verification)
+ * Checks if a user has read access to the finance queue and reports
  */
 export function canAccessFinance(user: SessionUser): boolean {
   return ['Finance', 'Admin'].includes(user.role);
+}
+
+/**
+ * Checks if a user has authority to execute financial mutations
+ * (settlement verification, payment release, payroll recovery).
+ * Strictly requires Finance role per corporate governance.
+ */
+export function canExecuteFinanceMutation(user: SessionUser): boolean {
+  return user.role === 'Finance';
 }
 
 /**

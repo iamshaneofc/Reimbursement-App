@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { signSessionToken, verifySessionToken } from '@/lib/auth/jwt';
-import { canApproveStep, canViewRequest, canAccessFinance, canAccessAdmin } from '@/lib/auth/rbac';
+import { canApproveStep, canViewRequest, canAccessFinance, canExecuteFinanceMutation, canAccessAdmin } from '@/lib/auth/rbac';
 
 describe('RBAC & Security Token Tests', () => {
   it('1. JWT Session Token correctly encapsulates role and cannot be forged without secret', async () => {
@@ -98,20 +98,26 @@ describe('RBAC & Security Token Tests', () => {
     expect(canViewRequest({ role: 'Reporting Manager', userId: 'user-unrelated-mgr' }, chaitanyaRequest)).toBe(false);
   });
 
-  it('8. Finance & Admin org-wide read visibility & authorization separation', () => {
+  it('8. Finance & Admin org-wide read visibility & mutation separation', () => {
     const chaitanyaRequest = {
       employeeId: 'user-chaitanya',
       approvalSteps: [{ approverId: 'user-suresh', role: 'Reporting Manager' }],
     };
 
-    // Finance can view claim for audit/payout review
+    // Finance can view claim for audit/payout review AND execute financial mutations
     expect(canViewRequest({ role: 'Finance', userId: 'user-ravi' }, chaitanyaRequest)).toBe(true);
     expect(canAccessFinance({ role: 'Finance' })).toBe(true);
+    expect(canExecuteFinanceMutation({ role: 'Finance' })).toBe(true);
     expect(canAccessAdmin({ role: 'Finance' })).toBe(false);
 
-    // Admin has org-wide read and admin config access
+    // Admin has org-wide read and admin config access, but CANNOT execute financial mutations
     expect(canViewRequest({ role: 'Admin', userId: 'user-admin' }, chaitanyaRequest)).toBe(true);
     expect(canAccessAdmin({ role: 'Admin' })).toBe(true);
-    expect(canAccessFinance({ role: 'Admin' })).toBe(true);
+    expect(canAccessFinance({ role: 'Admin' })).toBe(true); // Read access to queue
+    expect(canExecuteFinanceMutation({ role: 'Admin' })).toBe(false); // Mutations strictly forbidden for Admin
+
+    // Employee & Manager cannot execute finance mutations
+    expect(canExecuteFinanceMutation({ role: 'Employee' })).toBe(false);
+    expect(canExecuteFinanceMutation({ role: 'Reporting Manager' })).toBe(false);
   });
 });

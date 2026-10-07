@@ -204,8 +204,8 @@ export function AppShell({ children }: AppShellProps) {
                 </div>
               </Link>
 
-              {/* Employees and Managers can initiate requests */}
-              {(!isFinance || isAdmin) && (
+              {/* Employees and Managers can initiate requests; Admin and Finance do not create travel claims */}
+              {(!isFinance && !isAdmin) && (
                 <Link
                   href="/requests/new"
                   onClick={() => setIsMobileMenuOpen(false)}

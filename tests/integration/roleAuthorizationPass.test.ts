@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import prisma from '@/lib/db/prisma';
 import { buildApprovalSteps, determineRequiredApprovalRoles } from '@/lib/workflow/workflowEngine';
-import { canApproveStep, canViewRequest, canAccessFinance, canAccessAdmin } from '@/lib/auth/rbac';
+import { canApproveStep, canViewRequest, canAccessFinance, canExecuteFinanceMutation, canAccessAdmin } from '@/lib/auth/rbac';
 import { signSessionToken, verifySessionToken } from '@/lib/auth/jwt';
 
 describe('FINAL PRODUCT ROLE + ADMIN + MANAGER AUTHORIZATION PASS (15 Scenarios)', () => {
@@ -268,7 +268,7 @@ describe('FINAL PRODUCT ROLE + ADMIN + MANAGER AUTHORIZATION PASS (15 Scenarios)
     const catCode = `TEST_CAT_${Date.now().toString().slice(-4)}`;
     const newCat = await prisma.category.create({
       data: {
-        name: 'Technical Certification',
+        name: `Technical Certification ${catCode}`,
         code: catCode,
         description: 'Authorized technical courses and certification exam fees.',
         requiresProof: true,
@@ -328,6 +328,12 @@ describe('FINAL PRODUCT ROLE + ADMIN + MANAGER AUTHORIZATION PASS (15 Scenarios)
     // Non-finance cannot access finance actions
     expect(canAccessFinance({ role: 'Employee', userId: chaitanyaUser.id })).toBe(false);
     expect(canAccessFinance({ role: 'Reporting Manager', userId: sureshManager.id })).toBe(false);
+
+    // Finance can execute finance mutations, while Admin/Employee/Manager cannot
+    expect(canExecuteFinanceMutation({ role: 'Finance', userId: raviFinance.id })).toBe(true);
+    expect(canExecuteFinanceMutation({ role: 'Admin', userId: adminUser.id })).toBe(false);
+    expect(canExecuteFinanceMutation({ role: 'Employee', userId: chaitanyaUser.id })).toBe(false);
+    expect(canExecuteFinanceMutation({ role: 'Reporting Manager', userId: sureshManager.id })).toBe(false);
 
     // Non-admin cannot access admin config
     expect(canAccessAdmin({ role: 'Employee', userId: chaitanyaUser.id })).toBe(false);

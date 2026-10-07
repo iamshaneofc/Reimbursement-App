@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 
 export default function FinanceQueuePage() {
+  const [user, setUser] = useState<any>(null);
   const [claims, setClaims] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'ALL' | 'VERIFICATION' | 'PAYMENT' | 'RECOVERY' | 'HISTORY'>('VERIFICATION');
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,10 @@ export default function FinanceQueuePage() {
   };
 
   useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => setUser(d.user))
+      .catch(() => {});
     loadQueue();
   }, []);
 
@@ -176,6 +181,14 @@ export default function FinanceQueuePage() {
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-xs text-rose-800">
           <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
           <span className="font-medium">{error}</span>
+        </div>
+      )}
+
+      {/* Admin Read-Only Info Banner */}
+      {user?.role === 'Admin' && (
+        <div className="p-3.5 bg-indigo-50 border border-indigo-200 rounded-2xl flex items-center gap-2.5 text-xs text-indigo-900">
+          <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+          <span><strong>Admin Read-Only Oversight:</strong> You have full visibility into financial settlement queues, deductions, and payout history. Financial verification and payment releases are strictly restricted to authorized Finance personnel.</span>
         </div>
       )}
 
@@ -348,7 +361,7 @@ export default function FinanceQueuePage() {
                           <span>Inspect</span>
                         </Link>
 
-                        {claim.status === 'FINANCE_REVIEW' && (
+                        {user?.role === 'Finance' && claim.status === 'FINANCE_REVIEW' && (
                           <button
                             onClick={() => {
                               setSelectedClaim(claim);
@@ -361,7 +374,7 @@ export default function FinanceQueuePage() {
                           </button>
                         )}
 
-                        {['PAYMENT_PENDING', 'RECOVERY_DUE'].includes(claim.status) && (
+                        {user?.role === 'Finance' && ['PAYMENT_PENDING', 'RECOVERY_DUE'].includes(claim.status) && (
                           <button
                             onClick={() => {
                               setSelectedClaim(claim);
