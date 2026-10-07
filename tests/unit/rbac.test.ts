@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { signSessionToken, verifySessionToken } from '@/lib/auth/jwt';
-import { canApproveStep, canAccessFinance } from '@/lib/auth/rbac';
+import { canApproveStep, canViewRequest, canAccessFinance, canAccessAdmin } from '@/lib/auth/rbac';
 
 describe('RBAC & Security Token Tests', () => {
   it('1. JWT Session Token correctly encapsulates role and cannot be forged without secret', async () => {
@@ -40,9 +40,9 @@ describe('RBAC & Security Token Tests', () => {
 
   it('3. Claimant cannot self-approve even if they hold management role', () => {
     const isAllowed = canApproveStep(
-      { role: 'Head of Department', userId: 'user-meera' },
-      { approverId: 'user-meera', role: 'Head of Department' },
-      'user-meera' // Claimant is Meera
+      { role: 'Reporting Manager', userId: 'user-suresh' },
+      { approverId: 'user-suresh', role: 'Reporting Manager' },
+      'user-suresh' // Claimant is Suresh himself
     );
     expect(isAllowed).toBe(false);
   });
@@ -58,18 +58,60 @@ describe('RBAC & Security Token Tests', () => {
 
   it('5. Unassigned manager cannot approve another manager step', () => {
     const isAllowed = canApproveStep(
-      { role: 'Reporting Manager', userId: 'user-other' },
+      { role: 'Reporting Manager', userId: 'user-other-manager' },
       { approverId: 'user-suresh', role: 'Reporting Manager' },
       'user-chaitanya'
     );
     expect(isAllowed).toBe(false);
   });
 
-  it('6. Employee cannot access Finance Console or Actions', () => {
-    expect(canAccessFinance({ role: 'Employee' })).toBe(false);
-    expect(canAccessFinance({ role: 'Reporting Manager' })).toBe(false);
-    expect(canAccessFinance({ role: 'Head of Department' })).toBe(false);
+  it('6. Employee request visibility scoping: own request allowed, unrelated employee forbidden', () => {
+    const chaitanyaRequest = {
+      employeeId: 'user-chaitanya',
+      approvalSteps: [{ approverId: 'user-suresh', role: 'Reporting Manager' }],
+    };
+
+    // Chaitanya views own request -> Allowed
+    expect(canViewRequest({ role: 'Employee', userId: 'user-chaitanya' }, chaitanyaRequest)).toBe(true);
+
+    // Deepa (unrelated employee) views Chaitanya's request -> Forbidden
+    expect(canViewRequest({ role: 'Employee', userId: 'user-deepa' }, chaitanyaRequest)).toBe(false);
+  });
+
+  it('7. Manager request visibility scoping: own request allowed, assigned claim allowed, unrelated claim forbidden', () => {
+    const chaitanyaRequest = {
+      employeeId: 'user-chaitanya',
+      approvalSteps: [{ approverId: 'user-suresh', role: 'Reporting Manager' }],
+    };
+
+    // Suresh (assigned RM) views Chaitanya's request -> Allowed
+    expect(canViewRequest({ role: 'Reporting Manager', userId: 'user-suresh' }, chaitanyaRequest)).toBe(true);
+
+    // Suresh views his own request -> Allowed
+    const sureshOwnRequest = {
+      employeeId: 'user-suresh',
+      approvalSteps: [{ approverId: 'user-meera', role: 'Head of Department' }],
+    };
+    expect(canViewRequest({ role: 'Reporting Manager', userId: 'user-suresh' }, sureshOwnRequest)).toBe(true);
+
+    // Unrelated manager (e.g. from another division) views Chaitanya's request -> Forbidden
+    expect(canViewRequest({ role: 'Reporting Manager', userId: 'user-unrelated-mgr' }, chaitanyaRequest)).toBe(false);
+  });
+
+  it('8. Finance & Admin org-wide read visibility & authorization separation', () => {
+    const chaitanyaRequest = {
+      employeeId: 'user-chaitanya',
+      approvalSteps: [{ approverId: 'user-suresh', role: 'Reporting Manager' }],
+    };
+
+    // Finance can view claim for audit/payout review
+    expect(canViewRequest({ role: 'Finance', userId: 'user-ravi' }, chaitanyaRequest)).toBe(true);
     expect(canAccessFinance({ role: 'Finance' })).toBe(true);
+    expect(canAccessAdmin({ role: 'Finance' })).toBe(false);
+
+    // Admin has org-wide read and admin config access
+    expect(canViewRequest({ role: 'Admin', userId: 'user-admin' }, chaitanyaRequest)).toBe(true);
+    expect(canAccessAdmin({ role: 'Admin' })).toBe(true);
     expect(canAccessFinance({ role: 'Admin' })).toBe(true);
   });
 });

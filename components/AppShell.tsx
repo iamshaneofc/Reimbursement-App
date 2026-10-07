@@ -19,10 +19,11 @@ import {
   Menu,
   X,
   User,
-  Users,
   Building2,
-  Sparkles,
-  Check,
+  Tag,
+  CreditCard,
+  BarChart3,
+  Sliders,
 } from 'lucide-react';
 
 interface AppShellProps {
@@ -34,11 +35,9 @@ export function AppShell({ children }: AppShellProps) {
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
-  const [usersList, setUsersList] = useState<any[]>([]);
   const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [financeQueueCount, setFinanceQueueCount] = useState(0);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // If on login page, don't show the sidebar shell
@@ -51,15 +50,18 @@ export function AppShell({ children }: AppShellProps) {
         const data = await res.json();
         setUser(data.user);
 
-        // Fetch counts for badges
+        // Fetch badge counts dynamically
         if (data.user) {
-          if (['Reporting Manager', 'Head of Department', 'Head of Division', 'MD', 'Admin'].includes(data.user.role)) {
+          const isApproverRole = ['Reporting Manager', 'Head of Department', 'Head of Division', 'MD', 'Admin', 'Manager'].includes(data.user.role);
+          if (isApproverRole) {
             fetch('/api/approvals')
               .then((r) => r.json())
-              .then((d) => setPendingApprovalsCount(d.approvals?.length || 0))
+              .then((d) => setPendingApprovalsCount(d.stats?.pendingCount || d.approvals?.length || 0))
               .catch(() => {});
           }
-          if (['Finance', 'Admin'].includes(data.user.role)) {
+
+          const isFinanceRole = ['Finance', 'Admin'].includes(data.user.role);
+          if (isFinanceRole) {
             fetch('/api/finance/queue')
               .then((r) => r.json())
               .then((d) => {
@@ -70,11 +72,10 @@ export function AppShell({ children }: AppShellProps) {
           }
         }
       } else if (!isLoginPage) {
-        // Redirect unauthenticated to login
         router.push('/login');
       }
     } catch (e) {
-      console.error(e);
+      console.error('Failed to load user session:', e);
     } finally {
       setLoading(false);
     }
@@ -86,12 +87,6 @@ export function AppShell({ children }: AppShellProps) {
     } else {
       setLoading(false);
     }
-
-    // Load users list for account switcher helper
-    fetch('/api/auth/users')
-      .then((r) => r.json())
-      .then((d) => setUsersList(d.users || []))
-      .catch(() => {});
   }, [pathname, isLoginPage]);
 
   const handleLogout = async () => {
@@ -100,44 +95,37 @@ export function AppShell({ children }: AppShellProps) {
     window.location.href = '/login';
   };
 
-  const handleSwitchAccount = async (empCode: string) => {
-    await fetch('/api/auth/demo-login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ empCode }),
-    });
-    setIsSwitchModalOpen(false);
-    window.location.reload();
-  };
-
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  const isManager = user && ['Reporting Manager', 'Head of Department', 'Head of Division', 'MD', 'Admin'].includes(user.role);
-  const isFinance = user && ['Finance', 'Admin'].includes(user.role);
+  const role = user?.role || 'Employee';
+  const isManager = ['Reporting Manager', 'Head of Department', 'Head of Division', 'MD', 'Manager'].includes(role);
+  const isFinance = role === 'Finance';
+  const isAdmin = role === 'Admin';
 
   // Generate breadcrumb titles
   const getBreadcrumbs = () => {
     if (pathname === '/dashboard' || pathname === '/') return [{ label: 'Dashboard', href: '/dashboard' }];
-    if (pathname === '/requests') return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'My Requests', href: '/requests' }];
+    if (pathname === '/requests') return [{ label: 'Dashboard', href: '/dashboard' }, { label: isAdmin ? 'All Claims' : 'My Requests', href: '/requests' }];
     if (pathname === '/requests/new') return [{ label: 'Requests', href: '/requests' }, { label: 'New Request', href: '/requests/new' }];
     if (pathname.startsWith('/requests/new/')) return [{ label: 'Requests', href: '/requests' }, { label: 'New Request', href: '/requests/new' }, { label: 'Trip Creation Wizard', href: pathname }];
     if (pathname.startsWith('/requests/')) return [{ label: 'Requests', href: '/requests' }, { label: 'Request Details', href: pathname }];
     if (pathname === '/settlements') return [{ label: 'Dashboard', href: '/dashboard' }, { label: 'Settlements', href: '/settlements' }];
     if (pathname.startsWith('/settlements/')) return [{ label: 'Settlements', href: '/settlements' }, { label: 'Expense Claim Workspace', href: pathname }];
-    if (pathname === '/approvals') return [{ label: 'Management', href: '/approvals' }, { label: 'Approval Queue', href: '/approvals' }];
+    if (pathname === '/approvals') return [{ label: 'Review', href: '/approvals' }, { label: 'Approval Queue', href: '/approvals' }];
     if (pathname === '/finance') return [{ label: 'Finance Operations', href: '/finance' }, { label: 'Settlement Verification & Payouts', href: '/finance' }];
     if (pathname === '/evidence') return [{ label: 'Workspace', href: '/dashboard' }, { label: 'Evidence Vault', href: '/evidence' }];
-    if (pathname === '/audit') return [{ label: 'Compliance', href: '/audit' }, { label: 'Reports & Audit Log', href: '/audit' }];
-    if (pathname === '/settings') return [{ label: 'System', href: '/settings' }, { label: 'Settings & Policy', href: '/settings' }];
+    if (pathname === '/audit') return [{ label: 'Insight', href: '/audit' }, { label: 'Reports & Audit Log', href: '/audit' }];
+    if (pathname === '/categories') return [{ label: 'Build & Config', href: '/categories' }, { label: 'Expense Categories', href: '/categories' }];
+    if (pathname === '/settings') return [{ label: 'Account', href: '/settings' }, { label: 'Profile & Preferences', href: '/settings' }];
     return [{ label: 'Nortex', href: '/dashboard' }];
   };
 
   const breadcrumbs = getBreadcrumbs();
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row font-sans antialiased text-slate-800">
       {/* Mobile Top Header */}
       <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2">
@@ -161,7 +149,7 @@ export function AppShell({ children }: AppShellProps) {
         }`}
       >
         <div className="flex-1 flex flex-col overflow-y-auto">
-          {/* Logo & Product Brand */}
+          {/* Brand Identity */}
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
             <Link href="/dashboard" className="flex items-center gap-2.5 group">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-700 via-indigo-600 to-sky-500 flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition">
@@ -178,12 +166,12 @@ export function AppShell({ children }: AppShellProps) {
             </Link>
           </div>
 
-          {/* Navigation Links */}
-          <nav className="p-4 space-y-6">
-            {/* Main Section */}
+          {/* Role-Specific Navigation */}
+          <nav className="p-4 space-y-5">
+            {/* 1. WORK SECTION (Common to Employee, Manager, Finance, Admin) */}
             <div className="space-y-1">
               <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Main
+                Work
               </p>
 
               <Link
@@ -197,7 +185,7 @@ export function AppShell({ children }: AppShellProps) {
               >
                 <div className="flex items-center gap-2.5">
                   <LayoutDashboard className="w-4 h-4 text-slate-500" />
-                  <span>Overview</span>
+                  <span>Dashboard</span>
                 </div>
               </Link>
 
@@ -212,36 +200,54 @@ export function AppShell({ children }: AppShellProps) {
               >
                 <div className="flex items-center gap-2.5">
                   <FileText className="w-4 h-4 text-slate-500" />
-                  <span>My Requests</span>
+                  <span>{isAdmin ? 'Claims' : 'My Requests'}</span>
                 </div>
               </Link>
 
+              {/* Employees and Managers can initiate requests */}
+              {(!isFinance || isAdmin) && (
+                <Link
+                  href="/requests/new"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                    pathname === '/requests/new' || pathname.startsWith('/requests/new/')
+                      ? 'bg-indigo-50 text-indigo-700 font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <PlusCircle className="w-4 h-4 text-indigo-600" />
+                    <span className="text-indigo-600 font-bold">New Request</span>
+                  </div>
+                  <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-bold">
+                    +
+                  </span>
+                </Link>
+              )}
+
               <Link
-                href="/requests/new"
+                href="/evidence"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                  pathname === '/requests/new' || pathname.startsWith('/requests/new/')
+                  pathname.startsWith('/evidence')
                     ? 'bg-indigo-50 text-indigo-700 font-bold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <PlusCircle className="w-4 h-4 text-indigo-600" />
-                  <span className="text-indigo-600 font-bold">New Request</span>
+                  <FolderOpen className="w-4 h-4 text-slate-500" />
+                  <span>Evidence</span>
                 </div>
-                <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-800 rounded text-[9px] font-bold">
-                  +
-                </span>
               </Link>
             </div>
 
-            {/* Management Section */}
-            <div className="space-y-1">
-              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Workflows
-              </p>
+            {/* 2. REVIEW SECTION (Manager & Admin only) */}
+            {(isManager || isAdmin) && (
+              <div className="space-y-1">
+                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Review
+                </p>
 
-              {isManager && (
                 <Link
                   href="/approvals"
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -261,31 +267,16 @@ export function AppShell({ children }: AppShellProps) {
                     </span>
                   )}
                 </Link>
-              )}
+              </div>
+            )}
 
-              <Link
-                href="/settlements"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                  pathname === '/settlements' || pathname.startsWith('/settlements/')
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Receipt className="w-4 h-4 text-slate-500" />
-                  <span>Settlements</span>
-                </div>
-              </Link>
-            </div>
+            {/* 3. FINANCE SECTION (Finance & Admin only) */}
+            {(isFinance || isAdmin) && (
+              <div className="space-y-1">
+                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Finance
+                </p>
 
-            {/* Finance & Audit Section */}
-            <div className="space-y-1">
-              <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                Finance & Records
-              </p>
-
-              {isFinance && (
                 <Link
                   href="/finance"
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -296,8 +287,8 @@ export function AppShell({ children }: AppShellProps) {
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                    <span>Finance Center</span>
+                    <CreditCard className="w-4 h-4 text-indigo-600" />
+                    <span>Payments & Review</span>
                   </div>
                   {financeQueueCount > 0 && (
                     <span className="px-2 py-0.5 bg-indigo-600 text-white rounded-full text-[10px] font-bold">
@@ -305,226 +296,146 @@ export function AppShell({ children }: AppShellProps) {
                     </span>
                   )}
                 </Link>
-              )}
+              </div>
+            )}
 
-              <Link
-                href="/evidence"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                  pathname.startsWith('/evidence')
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <FolderOpen className="w-4 h-4 text-slate-500" />
-                  <span>Evidence Vault</span>
-                </div>
-              </Link>
+            {/* 4. INSIGHT SECTION (Finance & Admin only) */}
+            {(isFinance || isAdmin) && (
+              <div className="space-y-1">
+                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Insight
+                </p>
 
-              <Link
-                href="/audit"
-                onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                  pathname.startsWith('/audit')
-                    ? 'bg-indigo-50 text-indigo-700 font-bold'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <History className="w-4 h-4 text-slate-500" />
-                  <span>Reports & Audit</span>
-                </div>
-              </Link>
-            </div>
+                <Link
+                  href="/audit"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                    pathname.startsWith('/audit')
+                      ? 'bg-indigo-50 text-indigo-700 font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <BarChart3 className="w-4 h-4 text-slate-500" />
+                    <span>Reports & Audit</span>
+                  </div>
+                </Link>
+              </div>
+            )}
 
-            {/* System */}
+            {/* 5. BUILD / CONFIGURATION (Admin only) */}
+            {isAdmin && (
+              <div className="space-y-1">
+                <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Build & Config
+                </p>
+
+                <Link
+                  href="/categories"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
+                    pathname.startsWith('/categories')
+                      ? 'bg-indigo-50 text-indigo-700 font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Tag className="w-4 h-4 text-slate-500" />
+                    <span>Categories</span>
+                  </div>
+                </Link>
+              </div>
+            )}
+
+            {/* 6. ACCOUNT SECTION (All roles) */}
             <div className="space-y-1">
               <p className="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                System
+                Account
               </p>
 
               <Link
                 href="/settings"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition ${
-                  pathname.startsWith('/settings')
+                  pathname === '/settings'
                     ? 'bg-indigo-50 text-indigo-700 font-bold'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Settings className="w-4 h-4 text-slate-500" />
-                  <span>Settings & Policy</span>
+                  <User className="w-4 h-4 text-slate-500" />
+                  <span>Profile</span>
                 </div>
               </Link>
             </div>
           </nav>
         </div>
 
-        {/* Sidebar Footer: User Profile Card & Switcher */}
+        {/* User Card & Logout Footer */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50">
-          {user ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
-                  {user.name.split(' ').map((n: string) => n[0]).join('')}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-900 truncate leading-none">
-                    {user.name}
-                  </p>
-                  <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                    {user.designation}
-                  </p>
-                  <div className="flex items-center gap-1.5 mt-1">
-                    <span className="px-1.5 py-0.2 bg-slate-200/80 text-slate-700 rounded text-[9px] font-bold">
-                      {user.role}
-                    </span>
-                    <span className="text-[9px] text-slate-400 font-mono">
-                      {user.costCentre}
-                    </span>
-                  </div>
-                </div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-xs shrink-0">
+                {user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'U'}
               </div>
-
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200/60 text-[11px]">
-                <button
-                  onClick={() => setIsSwitchModalOpen(true)}
-                  className="flex items-center gap-1 text-slate-600 hover:text-indigo-600 transition font-medium"
-                >
-                  <Users className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Switch Role</span>
-                </button>
-
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-1 text-slate-600 hover:text-rose-600 transition font-medium"
-                >
-                  <LogOut className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Logout</span>
-                </button>
+              <div className="truncate">
+                <p className="text-xs font-bold text-slate-900 truncate">
+                  {user?.name || 'Loading user...'}
+                </p>
+                <p className="text-[10px] text-slate-500 truncate font-mono">
+                  {user?.empCode} &middot; <span className="font-semibold text-indigo-600">{user?.role}</span>
+                </p>
               </div>
             </div>
-          ) : (
-            <div className="text-center py-2">
-              <Link href="/login" className="text-xs text-indigo-600 font-bold">Sign In</Link>
-            </div>
-          )}
+          </div>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-white hover:bg-red-50 text-slate-600 hover:text-red-700 border border-slate-200 rounded-lg text-xs font-semibold transition"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out</span>
+          </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="flex-1 md:pl-64 flex flex-col min-h-screen">
         {/* Top Header Bar */}
-        <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-xs hidden md:block">
-          <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
-            {/* Breadcrumb Path */}
-            <div className="flex items-center gap-2 text-xs text-slate-500">
-              {breadcrumbs.map((crumb, idx) => (
-                <React.Fragment key={crumb.label}>
-                  {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-300" />}
-                  {idx === breadcrumbs.length - 1 ? (
-                    <span className="font-bold text-slate-900">{crumb.label}</span>
-                  ) : (
-                    <Link href={crumb.href} className="hover:text-slate-800 transition">
-                      {crumb.label}
-                    </Link>
-                  )}
-                </React.Fragment>
-              ))}
-            </div>
+        <header className="h-14 bg-white border-b border-slate-200/80 px-6 hidden md:flex items-center justify-between sticky top-0 z-30">
+          {/* Breadcrumb Navigation */}
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            {breadcrumbs.map((crumb, idx) => (
+              <React.Fragment key={crumb.href + idx}>
+                {idx > 0 && <ChevronRight className="w-3 h-3 text-slate-300" />}
+                {idx === breadcrumbs.length - 1 ? (
+                  <span className="font-bold text-slate-900">{crumb.label}</span>
+                ) : (
+                  <Link href={crumb.href} className="hover:text-slate-800 transition">
+                    {crumb.label}
+                  </Link>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
 
-            {/* Right Tools */}
-            <div className="flex items-center gap-3">
-              {user && (
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="text-[11px] text-slate-500">
-                    Logged in as: <strong className="text-slate-800">{user.name}</strong> ({user.role})
-                  </span>
-                </div>
-              )}
-
-              <Link
-                href="/requests/new"
-                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition"
-              >
-                <PlusCircle className="w-3.5 h-3.5" />
-                <span>+ New Request</span>
-              </Link>
-            </div>
+          {/* Top Right User Pill */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-medium text-slate-500">
+              Department: <strong className="text-slate-800">{user?.department || 'Operations'}</strong>
+            </span>
+            <div className="h-4 w-px bg-slate-200" />
+            <span className="text-xs font-mono bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+              {user?.city || 'Pune Hub'}
+            </span>
           </div>
         </header>
 
-        {/* Page Content */}
-        <main className="flex-1">{children}</main>
-
-        {/* Clean Corporate Footer */}
-        <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px]">
-            <p className="text-slate-600">
-              &copy; {new Date().getFullYear()} Nortex Industries Ltd &middot; Travel & Expense Enterprise Platform
-            </p>
-            <p className="text-slate-400 font-mono">
-              Policy NTX-HR-POL-11 Rev 4 &middot; Centralized Policy & Workflow Engine
-            </p>
-          </div>
-        </footer>
+        {/* Dynamic Page View */}
+        <main className="flex-1">
+          {children}
+        </main>
       </div>
-
-      {/* Demo Persona Switcher Modal (Clean Dev Tool) */}
-      {isSwitchModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-elevation border border-slate-200 space-y-4 max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <Users className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-base font-bold text-slate-900">Switch User Account</h3>
-              </div>
-              <button
-                onClick={() => setIsSwitchModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              Select any corporate persona from <code>employee_master.csv</code> to inspect role-specific views and approval queues.
-            </p>
-
-            <div className="space-y-2">
-              {usersList.map((u) => {
-                const isSelected = user?.empCode === u.empCode;
-                return (
-                  <button
-                    key={u.empCode}
-                    onClick={() => handleSwitchAccount(u.empCode)}
-                    className={`w-full text-left p-3 rounded-xl border transition flex items-start justify-between gap-2 text-xs ${
-                      isSelected
-                        ? 'bg-indigo-50/70 border-indigo-300 text-indigo-950 font-semibold'
-                        : 'bg-slate-50/60 border-slate-200 hover:bg-slate-100/70 text-slate-800'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900">{u.name}</span>
-                        <span className="text-[10px] font-mono text-slate-500">[{u.empCode}]</span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5">{u.designation} &middot; {u.department}</p>
-                      <span className="inline-block mt-1 px-1.5 py-0.2 bg-white border border-slate-200 text-indigo-700 rounded text-[9px] font-bold">
-                        Role: {u.role}
-                      </span>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 text-indigo-600 mt-1" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

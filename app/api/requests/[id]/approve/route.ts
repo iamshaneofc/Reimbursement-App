@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/session';
 import { logAuditEvent } from '@/lib/audit/auditLogger';
+import { canApproveStep } from '@/lib/auth/rbac';
 
 export async function POST(
   req: NextRequest,
@@ -30,11 +31,6 @@ export async function POST(
       return NextResponse.json({ error: `Request is not pending approval (current status: ${request.status})` }, { status: 400 });
     }
 
-    // EDGE CASE: Self-Approval Prevention
-    if (request.employeeId === session.userId) {
-      return NextResponse.json({ error: 'Policy Violation: You cannot approve your own travel request' }, { status: 403 });
-    }
-
     // Find the current active approval step
     const currentStep = request.approvalSteps.find(
       (s) => s.sequence === request.currentStepSequence && s.status === 'PENDING'
@@ -44,12 +40,12 @@ export async function POST(
       return NextResponse.json({ error: 'No pending approval step found at current sequence' }, { status: 400 });
     }
 
-    // Verify current user is the assigned approver or is an Admin or in the higher hierarchy
-    const isAssigned = currentStep.approverId === session.userId;
-    const isAdmin = session.role === 'Admin';
-    const isHigherRole = session.role === currentStep.role || ['Head of Department', 'Head of Division', 'MD'].includes(session.role);
-
-    if (!isAssigned && !isAdmin && !isHigherRole) {
+    // RBAC Security & Self-Approval Prevention Check
+    const isAuthorized = canApproveStep(session, currentStep, request.employeeId);
+    if (!isAuthorized) {
+      if (request.employeeId === session.userId) {
+        return NextResponse.json({ error: 'Policy Violation: You cannot approve your own travel request' }, { status: 403 });
+      }
       return NextResponse.json({ error: 'Unauthorized: You are not assigned to approve this step' }, { status: 403 });
     }
 

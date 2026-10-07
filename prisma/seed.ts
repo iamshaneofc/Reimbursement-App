@@ -25,6 +25,7 @@ async function main() {
   }
 
   // Clear existing data cleanly in reverse dependency order
+  await (prisma as any).category?.deleteMany();
   await prisma.auditEvent.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.expenseDocument.deleteMany();
@@ -33,8 +34,19 @@ async function main() {
   await prisma.travelRequest.deleteMany();
   await prisma.user.deleteMany();
 
-  // 1. Seed Users from employee_master.csv
+  // 1. Seed Users from employee_master.csv + Platform Admin
   const employeesData = [
+    {
+      empCode: 'NX-9001',
+      name: 'System Admin',
+      email: 'admin@nortexindustries.com',
+      designation: 'Enterprise Platform Administrator',
+      department: 'IT & Systems',
+      costCentre: 'CE000',
+      city: 'Mumbai',
+      role: 'Admin',
+      reportingManagerCode: null,
+    },
     {
       empCode: 'NX-1000',
       name: 'Nandita Shah',
@@ -135,6 +147,25 @@ async function main() {
       reportingManagerCode: 'NX-3300',
     },
   ];
+
+  // 2. Seed Default Reimbursement Categories
+  const defaultCategories = [
+    { name: 'Domestic Travel', code: 'DOM_TRAVEL', icon: 'Plane', description: 'Domestic flights, intercity trains, lodging, and daily meals.', requiresProof: true, maxLimit: 200000, displayOrder: 1 },
+    { name: 'International Travel', code: 'INT_TRAVEL', icon: 'Globe', description: 'Cross-border business travel, international airfare, and lodging.', requiresProof: true, maxLimit: 500000, displayOrder: 2 },
+    { name: 'Cash Advance', code: 'CASH_ADV', icon: 'Banknote', description: 'Pre-trip petty cash advance up to 60% of estimated out-of-pocket expenses.', requiresProof: false, maxLimit: 50000, displayOrder: 3 },
+    { name: 'Meals & Per Diem', code: 'MEALS', icon: 'Utensils', description: 'Daily food allowances and working meal reimbursements during approved travel.', requiresProof: true, maxLimit: 2500, displayOrder: 4 },
+    { name: 'Local Conveyance', code: 'LOCAL_CONV', icon: 'Car', description: 'City cabs, auto-rickshaws, metro fares, and business mileage.', requiresProof: true, maxLimit: 5000, displayOrder: 5 },
+    { name: 'Business Entertainment', code: 'BUS_ENT', icon: 'Briefcase', description: 'Client entertainment, business lunches/dinners. Prior HOD approval required > ₹2,000.', requiresProof: true, maxLimit: 25000, displayOrder: 6 },
+    { name: 'Conference & Training', code: 'CONF_TRAIN', icon: 'Award', description: 'Professional certifications, technical workshops, and conference registrations.', requiresProof: true, maxLimit: 50000, displayOrder: 7 },
+    { name: 'Phone & Internet', code: 'PHONE_NET', icon: 'Wifi', description: 'Monthly mobile bill and home broadband reimbursement for eligible staff.', requiresProof: true, maxLimit: 3000, displayOrder: 8 },
+    { name: 'General Expense', code: 'GEN_EXP', icon: 'Receipt', description: 'Emergency office supplies, client courier charges, and miscellaneous fees.', requiresProof: true, maxLimit: 10000, displayOrder: 9 },
+  ];
+
+  for (const cat of defaultCategories) {
+    await (prisma as any).category.create({
+      data: cat,
+    });
+  }
 
   const userMap = new Map<string, any>();
 

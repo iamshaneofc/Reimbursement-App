@@ -3,6 +3,7 @@ import prisma from '@/lib/db/prisma';
 import { requireAuth } from '@/lib/auth/session';
 import { calculateSettlementSummary } from '@/lib/calculations/settlementCalculator';
 import { evaluateExpense } from '@/lib/policy/policyEngine';
+import { canViewRequest } from '@/lib/auth/rbac';
 
 export async function GET(
   req: NextRequest,
@@ -53,10 +54,12 @@ export async function GET(
       return NextResponse.json({ error: 'Travel request not found' }, { status: 404 });
     }
 
-    // RBAC Security Check:
-    // Employee can ONLY view their own requests.
-    if (session.role === 'Employee' && request.employeeId !== session.userId) {
-      return NextResponse.json({ error: 'Access denied: You cannot view another employee\'s travel request' }, { status: 403 });
+    // RBAC Security Check: Enforce strict access control across all roles
+    if (!canViewRequest(session, { employeeId: request.employeeId, approvalSteps: request.approvalSteps })) {
+      return NextResponse.json(
+        { error: 'Access denied: You do not have authorization to view this travel request' },
+        { status: 403 }
+      );
     }
 
     // Evaluate all expenses dynamically with real-time policy rules
